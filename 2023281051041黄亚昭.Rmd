@@ -1,0 +1,271 @@
+---
+title: "关于链家武汉二手房网站的数据分析报告"
+author: "黄亚昭-2023281051041-MEM"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    fig_caption: true
+    latex_engine: xelatex
+    keep_tex: true
+documentclass: ctexart
+header-includes:
+  - \usepackage{setspace}
+  - \setstretch{1.5}
+  - \usepackage{geometry}
+  - \geometry{a4paper, left=2cm, right=2cm, top=2cm, bottom=2cm}
+---
+
+\newpage
+
+```{r setup, include = FALSE}
+# 数据准备工作
+knitr::opts_chunk$set(echo = TRUE,error = FALSE, warning = FALSE, 
+                      message = FALSE, out.width = "100%", split = FALSE,
+                      fig.align = "center")
+#load library
+library(showtext)
+showtext_auto(enable=TRUE)
+library(tidyverse)
+library(kableExtra)
+library(pander)
+library(lubridate)
+library(scales)
+library(plotly)
+library(patchwork)
+library(ggrepel)
+```
+
+
+# 摘要
+
+发现1：总体来看，房屋总价与房屋单价呈正相关性，房屋总价随着房屋单价的增加而增加。按照房屋建筑形式（即房屋功能）划分，可以看出房屋总价与房屋单价仍呈正相关性，房屋总价随着房屋单价的增加而增加。
+
+发现2：通过分析可以看出，一是塔板结合（商住两用）房屋单价最高，二是板楼（住宅）房屋单价高于塔楼（商业）房屋单价，这与土地市场上住宅用地亩单价高于商业用地亩单价情况一致。
+
+发现3：通过观察，房屋单价与区域热销程度没有很强的关联性。
+
+# 数据介绍
+
+本报告**链家**数据获取方式如下：
+
+报告人通过老师安排的作业获取了[链家武汉二手房网站](https://wh.lianjia.com/ershoufang/)数据。
+
+-   链家二手房网站默认显示100页，每页30套房产，因此本数据包括3000套房产信息；
+
+**说明：**数据仅用于本次作业；由于不清楚链家数据的展示规则，因此数据可能并不是武汉二手房市场的随机抽样，结论很可能有很大的偏差，甚至可能是错误的。
+
+\newpage
+
+# 第一部分：载入数据
+
+```{r}
+lj01<- read_csv("./data/2023-09-12_cleaned.csv")
+view(lj01)
+# EDA ---------------------------------------------------------------------
+theme_set(theme(text = element_text(family="sans",size = 10)))
+```
+
+## 一、数据概览
+
+数据表lj01共包括property_region、price_sqm等18个变量，涉及3000行数据。表的前10行示例如下：
+
+```{r}
+lj01 %>% 
+  head(10) %>%
+  kable(caption = "武汉链家二手房") %>% 
+  kable_styling()
+```
+
+## 二、数据去重
+
+```{r}
+lj02 <- unique(lj01)
+view(lj02)
+```
+
+对数据表lj01去重后得到数据表lj02，仍包括property_region、price_sqm等18个变量，涉及2515行数据。
+
+\newpage
+
+# 第二部分：对各变量做描述性统计 
+## 一、查看整体分布特征
+
+```{r}
+glimpse(lj02)
+```
+
+```{r}
+pander(summary(lj02))
+```
+
+可以看到：
+
+-   数值型变量7个:price_ttl,price_sqm,bedrooms,livingrooms,building_area,property_t_height,followers;字符型变量11个:property_name,property_region,directions1,directions2,decoration,property_height,property_style，near_subway,if_2y,has_key,vr;可将9个字符型变量转换为factor因子:directions1,directions2,decotion,property_height,property_style,near_subway,if_2y,has_key,vr。
+
+-   房屋单价平均值为14309元/平方米，房屋总价平均值为154.8万元，户均面积100.67平方米，户型以2-3个房间、1-2个客厅居多。
+
+## 二、单个变量描述统计 
+### 1.小区名字及所处区域
+
+```{r, include=FALSE}
+table(lj02$property_name)
+table(lj02$property_region)
+```
+
+### 2.房屋总价
+
+```{r}
+lj02%>%
+  ggplot(aes(price_ttl))+
+  geom_histogram()
+```
+
+由直方图可以看出，房屋总价集中在100-200万元。
+
+### 3.房屋单价
+
+```{r}
+lj02%>%
+  ggplot(aes(price_sqm))+
+  geom_histogram()
+```
+
+由直方图可以看出，房屋单价集中在10000元/平方米-20000元/平方米。
+
+### 4.房间数
+
+```{r}
+lj02%>%
+  ggplot(aes(bedrooms))+
+  geom_histogram()
+```
+
+由直方图可以看出，有房间数为1、2、3、4、5、6及其他的户型，其中房间数为2、3的户型居多，房间数为1、4的户型次之。
+
+### 5.客厅数
+
+```{r}
+lj02%>%
+  ggplot(aes(livingrooms))+
+  geom_histogram()
+```
+
+由直方图可以看出，有客厅数为0、1、2、3的四种户型，绝大部分为客厅数为1、2的户型。
+ 
+### 6.建筑面积
+
+```{r}
+lj02%>%
+  ggplot(aes(building_area))+
+  geom_histogram()
+```
+
+由直方图可以看出，建筑面积集中在60平方米-140平方米区间范围内。
+
+### 7.楼栋总层数
+
+```{r}
+lj02%>%
+  ggplot(aes(property_t_height))+
+  geom_histogram()
+```
+
+由直方图可以看出，房屋总层数有低层及中高层之分，低层集中在4-10层，高层集中在30层左右。
+
+### 8.房屋朝向、装修状况、建筑形式、是否靠近地铁等
+
+```{r}
+table(lj02$directions1)
+```
+
+```{r}
+table(lj02$directions2)
+```
+
+```{r}
+table(lj02$decoration)
+```
+
+二手房主要以简装和精装为主。
+
+```{r}
+table(lj02$property_height)
+```
+
+```{r}
+table(lj02$property_style)
+```
+
+板楼主要功能为住宅，塔楼主要功能为办公、住宅、酒店、观光塔等，板塔结合同时满足商业和居住空间。由此可见，该二手房数据不仅涉及住宅，还涉及商业、办公等。
+
+```{r}
+table(lj02$near_subway)
+table(lj02$if_2y)
+
+```
+
+\newpage
+
+# 第三部分：探索性分析
+## 一、分析房屋总价与房屋单价间的关系
+
+```{r}
+lj02%>%
+  ggplot()+
+  geom_point(aes(x=price_sqm,y=price_ttl,shape=property_style))+
+  geom_smooth(aes(x=price_sqm,y=price_ttl),se=FALSE)
+```
+
+总体来看，房屋总价与房屋单价呈正相关性，房屋总价随着房屋单价的增加而增加。
+
+```{r}
+lj02%>%
+  ggplot()+
+  geom_point(aes(x=price_sqm,y=price_ttl,color="grey"))+
+  geom_smooth(aes(x=price_sqm,y=price_ttl),se=FALSE)+
+  facet_grid(.~property_style)
+```
+
+按照房屋建筑形式（即房屋功能）划分，可以看出房屋总价与房屋单价仍呈正相关性，房屋总价随着房屋单价的增加而增加。
+
+## 二、比较住宅及商业住宅单价差异
+
+```{r}
+#对二手房的房屋
+lj02%>%
+  group_by(property_style)%>%
+  summarise(mean1=mean(price_ttl),max=max(price_ttl),min=min(price_ttl))
+
+```
+
+通过分析可以看出，一是塔板结合（商住两用）房屋单价最高，二是板楼（住宅）房屋单价高于塔楼（商业）房屋单价，这与土地市场上住宅用地亩单价高于商业用地亩单价情况一致。
+
+## 三、分析房屋单价与区域热销程度的关系
+
+```{r}
+lj_n_mean <- lj02%>%
+  group_by(property_region)%>%
+  summarise(n=n(),mean2=mean(price_ttl))
+
+```
+
+```{r}
+lj_n_mean%>%
+  ggplot() +
+  geom_point(aes(x = n, y = mean2, color = n))
+```
+
+\newpage
+
+#第四部分 总结
+
+1.该二手房数据中，数值型变量7个:price_ttl,price_sqm,bedrooms,livingrooms,building_area,
+property_t_height,followers;字符型变量11个:property_name,property_region,directions1,
+directions2,decoration,property_height,property_style，near_subway,if_2y,has_key,
+vr;可将9个字符型变量转换为factor因子:directions1,directions2,decotion,property_height,
+property_style,near_subway,if_2y,has_key,vr。
+2.该二手房数据中，房屋总价集中在100-200万元，房屋总价平均值为154.8万元；房屋单价集中在10000元/平方米-20000元/平方米，房屋单价平均值为14309元/平方米；有房间数为1、2、3、4、5、6及其他的户型，其中房间数为2、3的户型居多，房间数为1、4的户型次之；有客厅数为0、1、2、3的四种户型，绝大部分为客厅数为1、2的户型；建筑面积集中在60平方米-140平方米区间范围内，户均面积100.67平方米；房屋总层数有低层及中高层之分，低层集中在4-10层，高层集中在30层左右。
+3.总体来看，房屋总价与房屋单价呈正相关性，房屋总价随着房屋单价的增加而增加。按照房屋建筑形式（即房屋功能）划分，可以看出房屋总价与房屋单价仍呈正相关性，房屋总价随着房屋单价的增加而增加。
+4.通过分析可以看出，一是塔板结合（商住两用）房屋单价最高，二是板楼（住宅）房屋单价高于塔楼（商业）房屋单价，这与土地市场上住宅用地亩单价高于商业用地亩单价情况一致。
+5.通过观察，房屋单价与区域热销程度没有很强的关联性。
